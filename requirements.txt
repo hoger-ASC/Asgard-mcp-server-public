@@ -1,0 +1,8 @@
+fastapi
+uvicorn(standard)
+pydantic
+mcp(cli)
+httpx
+ollama
+sentence-transformers
+pillow
