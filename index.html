@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Local MCP Chat</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; background: #111; color: #eee; }
+  #log { border: 1px solid #333; border-radius: 8px; padding: 16px; height: 60vh; overflow-y: auto; background: #1a1a1a; }
+  .msg { margin: 10px 0; line-height: 1.4; white-space: pre-wrap; }
+  .user { color: #7fd1ff; text-align: right;}
+  .assistant { color: #eee; }
+  .tools { color: #888; font-size: 0.85em; margin-top: 4px; }
+  .msg pre { background: #000; padding: 10px; border-radius: 6px; overflow-x: auto; }
+  .msg code { background: #000; padding: 2px 5px; border-radius: 4px; font-size: 0.9em; }
+  .msg pre code { background: none; padding: 0; }
+  .msg ul, .msg ol { padding-left: 22px; }
+  .msg p { margin: 6px 0; }
+  form { display: flex; gap: 8px; margin-top: 12px; }
+  input[type=text] { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #333; background: #1a1a1a; color: #eee; }
+  button { padding: 10px 16px; border-radius: 6px; border: none; background: #3a7bd5; color: white; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: default; }
+</style>
+</head>
+<body>
+  <h2>Local MCP Chat</h2>
+  <div id="log"></div>
+  <form id="chat-form">
+    <input type="text" id="input" placeholder="Ask something..." autocomplete="off" required>
+    <button type="submit" id="send-btn">Send</button>
+  </form>
+
+  <script>
+    const log = document.getElementById('log');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send-btn');
+
+    let conversationHistory = [];
+    let userMessages = [];
+    let assistantMessages = [];
+
+    function addMessage(text, role, toolCalls) {
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+
+      if (role === 'assistant') {
+        const label = document.createElement('strong');
+        label.textContent = 'Assistant: ';
+        div.appendChild(label);
+        const body = document.createElement('span');
+        body.innerHTML = DOMPurify.sanitize(marked.parse(text));
+        div.appendChild(body);
+      } else {
+        div.textContent = 'You: ' + text;
+      }
+
+      if (toolCalls && toolCalls.length) {
+        const t = document.createElement('div');
+        t.className = 'tools';
+        t.textContent = 'Tools used: ' + toolCalls.join(', ');
+        div.appendChild(t);
+      }
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+
+      addMessage(message, 'user');
+      userMessages.push(message);
+      input.value = '';
+      sendBtn.disabled = true;
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history: conversationHistory })
+        });
+        const data = await res.json();
+        addMessage(data.reply, 'assistant', data.tool_calls);
+        assistantMessages.push(data.reply);
+        conversationHistory = data.history;
+      } catch (err) {
+        addMessage('Error: ' + err.message, 'assistant');
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
+</body>
+</html>
